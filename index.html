@@ -5,9 +5,19 @@
   <title>EBL Time & Local Weather Widget</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
+    :root {
+      background-color: white;
+      color: black;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        background-color: #0f172a;
+        color: white;
+      }
+    }
+
     body {
-      background-color: #0f172a;
-      color: white;
       font-family: 'Menlo', 'Consolas', monospace;
     }
   </style>
@@ -19,7 +29,7 @@
       <div class="h-3 w-3 bg-[#27FF63] rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-ping"></div>
       <div class="h-2 w-2 bg-[#27FF63] rounded-full absolute top-[60%] left-[60%] -translate-x-1/2 -translate-y-1/2"></div>
     </div>
-    <span id="weather" class="text-white text-xl">Loading weather...</span>
+    <span id="weather" class="text-inherit text-xl">Loading weather...</span>
   </div>
 
   <script>
@@ -27,7 +37,7 @@
     function updateTime() {
       const now = new Date();
       const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-      const offset = 3 * 60 * 60000; // UTC+3 in ms
+      const offset = 3 * 60 * 60000;
       const eblTime = new Date(utc + offset);
 
       const hours = String(eblTime.getHours()).padStart(2, '0');
@@ -39,7 +49,7 @@
     setInterval(updateTime, 1000);
     updateTime();
 
-    // Fetch weather from Open-Meteo API for current user location
+    // Fetch weather from Open-Meteo
     async function fetchWeather(lat, lon) {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
       try {
@@ -48,7 +58,6 @@
         const temp = Math.round(data.current_weather.temperature);
         const iconCode = data.current_weather.weathercode;
 
-        // Simple weather code to emoji mapping from Open-Meteo docs
         const icons = {
           0: "☀️", 1: "🌤", 2: "⛅", 3: "☁️",
           45: "🌫", 48: "🌫", 51: "🌦", 61: "🌧",
@@ -62,7 +71,7 @@
       }
     }
 
-    // Get geolocation and update weather
+    // Get user location
     function getLocationAndWeather() {
       if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(
