@@ -2,29 +2,38 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>EBL Time & Local Weather Widget</title>
+  <title>Time & Weather Widget</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     :root {
-      background-color: white;
+      background-color: transparent;
       color: black;
     }
-
     @media (prefers-color-scheme: dark) {
       :root {
-        background-color: #0f172a;
         color: white;
       }
     }
-
     body {
       font-family: 'Menlo', 'Consolas', monospace;
+      background-color: transparent;
+      margin: 0;
+    }
+    .spring {
+      display: inline-block;
+      animation: springy 0.6s ease-out;
+    }
+    @keyframes springy {
+      0% { transform: scale(1); }
+      30% { transform: scale(1.25); }
+      60% { transform: scale(0.95); }
+      100% { transform: scale(1); }
     }
   </style>
 </head>
 <body class="h-screen flex items-center justify-center">
   <div class="flex items-center gap-4 text-xl slashed-zero tabular-nums" id="time-container">
-    <span id="clock">EBL — 00:00:00</span>
+    <span id="clock">--- — 00:00:00</span>
     <div class="flex h-3 w-3 justify-center items-center relative">
       <div class="h-3 w-3 bg-[#27FF63] rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-ping"></div>
       <div class="h-2 w-2 bg-[#27FF63] rounded-full absolute top-[60%] left-[60%] -translate-x-1/2 -translate-y-1/2"></div>
@@ -33,62 +42,77 @@
   </div>
 
   <script>
-    // Show Erbil time (UTC+3)
-    function updateTime() {
+    let cityCode = "---";
+    const weatherIcons = {
+      0: "☀️", 1: "🌤", 2: "⛅", 3: "☁️",
+      45: "🌫", 48: "🌫", 51: "🌦", 61: "🌧",
+      71: "❄️", 95: "⛈", 99: "⛈"
+    };
+
+    function animateClock(newTime) {
+      const clock = document.getElementById("clock");
+      clock.classList.remove("spring");
+      void clock.offsetWidth;
+      clock.classList.add("spring");
+      clock.textContent = `${cityCode} — ${newTime}`;
+    }
+
+    function updateTime(offset = 3) {
       const now = new Date();
       const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-      const offset = 3 * 60 * 60000;
-      const eblTime = new Date(utc + offset);
+      const localTime = new Date(utc + offset * 60000);
 
-      const hours = String(eblTime.getHours()).padStart(2, '0');
-      const minutes = String(eblTime.getMinutes()).padStart(2, '0');
-      const seconds = String(eblTime.getSeconds()).padStart(2, '0');
+      const hours = String(localTime.getHours()).padStart(2, '0');
+      const minutes = String(localTime.getMinutes()).padStart(2, '0');
+      const seconds = String(localTime.getSeconds()).padStart(2, '0');
 
-      document.getElementById('clock').textContent = `EBL — ${hours}:${minutes}:${seconds}`;
+      animateClock(`${hours}:${minutes}:${seconds}`);
     }
-    setInterval(updateTime, 1000);
-    updateTime();
 
-    // Fetch weather from Open-Meteo
+    setInterval(() => updateTime(), 1000);
+
     async function fetchWeather(lat, lon) {
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
+      const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
+      const data = await res.json();
+      const temp = Math.round(data.current_weather.temperature);
+      const iconCode = data.current_weather.weathercode;
+      const emoji = weatherIcons[iconCode] || "❓";
+      document.getElementById('weather').textContent = `${emoji} ${temp}°C`;
+      updateTime(data.utc_offset_seconds / 60);
+    }
+
+    function shortenCityName(name) {
+      return name.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+    }
+
+    async function fetchCityName(lat, lon) {
       try {
-        const res = await fetch(url);
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
         const data = await res.json();
-        const temp = Math.round(data.current_weather.temperature);
-        const iconCode = data.current_weather.weathercode;
-
-        const icons = {
-          0: "☀️", 1: "🌤", 2: "⛅", 3: "☁️",
-          45: "🌫", 48: "🌫", 51: "🌦", 61: "🌧",
-          71: "❄️", 95: "⛈", 99: "⛈"
-        };
-
-        const emoji = icons[iconCode] || "❓";
-        document.getElementById('weather').textContent = `${emoji} ${temp}°C`;
+        const fullName = data.address.city || data.address.town || data.address.village || data.address.state || "---";
+        cityCode = shortenCityName(fullName);
       } catch {
-        document.getElementById('weather').textContent = "🌐 Weather error";
+        cityCode = "---";
       }
     }
 
-    // Get user location
-    function getLocationAndWeather() {
-      if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            fetchWeather(position.coords.latitude, position.coords.longitude);
-          },
-          () => {
-            document.getElementById('weather').textContent = "📍 Location blocked";
-          }
-        );
+    function initLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          await fetchCityName(lat, lon);
+          fetchWeather(lat, lon);
+        }, () => {
+          document.getElementById('weather').textContent = "📍 Location blocked";
+        });
       } else {
         document.getElementById('weather').textContent = "📍 Geolocation not available";
       }
     }
 
-    getLocationAndWeather();
-    setInterval(getLocationAndWeather, 600000); // Refresh weather every 10 minutes
+    initLocation();
+    setInterval(initLocation, 10 * 60 * 1000);
   </script>
 </body>
 </html>
