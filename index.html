@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>EBL Time Widget</title>
+  <meta charset="UTF-8" />
+  <title>EBL Time & Local Weather Widget</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
@@ -13,20 +13,22 @@
   </style>
 </head>
 <body class="h-screen flex items-center justify-center">
-  <div class="flex items-center gap-3 text-xl slashed-zero tabular-nums" id="time-container">
+  <div class="flex items-center gap-4 text-xl slashed-zero tabular-nums" id="time-container">
     <span id="clock">EBL — 00:00:00</span>
     <div class="flex h-3 w-3 justify-center items-center relative">
       <div class="h-3 w-3 bg-[#27FF63] rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-ping"></div>
       <div class="h-2 w-2 bg-[#27FF63] rounded-full absolute top-[60%] left-[60%] -translate-x-1/2 -translate-y-1/2"></div>
     </div>
+    <span id="weather" class="text-white text-xl">Loading weather...</span>
   </div>
 
   <script>
+    // Show Erbil time (UTC+3)
     function updateTime() {
       const now = new Date();
-      const offset = 3 * 60; // EBL is UTC+3
       const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-      const eblTime = new Date(utc + 60000 * offset);
+      const offset = 3 * 60 * 60000; // UTC+3 in ms
+      const eblTime = new Date(utc + offset);
 
       const hours = String(eblTime.getHours()).padStart(2, '0');
       const minutes = String(eblTime.getMinutes()).padStart(2, '0');
@@ -34,9 +36,50 @@
 
       document.getElementById('clock').textContent = `EBL — ${hours}:${minutes}:${seconds}`;
     }
-
     setInterval(updateTime, 1000);
     updateTime();
+
+    // Fetch weather from Open-Meteo API for current user location
+    async function fetchWeather(lat, lon) {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        const temp = Math.round(data.current_weather.temperature);
+        const iconCode = data.current_weather.weathercode;
+
+        // Simple weather code to emoji mapping from Open-Meteo docs
+        const icons = {
+          0: "☀️", 1: "🌤", 2: "⛅", 3: "☁️",
+          45: "🌫", 48: "🌫", 51: "🌦", 61: "🌧",
+          71: "❄️", 95: "⛈", 99: "⛈"
+        };
+
+        const emoji = icons[iconCode] || "❓";
+        document.getElementById('weather').textContent = `${emoji} ${temp}°C`;
+      } catch {
+        document.getElementById('weather').textContent = "🌐 Weather error";
+      }
+    }
+
+    // Get geolocation and update weather
+    function getLocationAndWeather() {
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            fetchWeather(position.coords.latitude, position.coords.longitude);
+          },
+          () => {
+            document.getElementById('weather').textContent = "📍 Location blocked";
+          }
+        );
+      } else {
+        document.getElementById('weather').textContent = "📍 Geolocation not available";
+      }
+    }
+
+    getLocationAndWeather();
+    setInterval(getLocationAndWeather, 600000); // Refresh weather every 10 minutes
   </script>
 </body>
 </html>
