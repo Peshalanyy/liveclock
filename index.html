@@ -1,118 +1,93 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Time & Weather Widget</title>
+  <meta charset="UTF-8">
+  <title>Local Time Widget</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    :root {
+    body {
       background-color: transparent;
-      color: black;
+      font-family: 'Menlo', 'Consolas', monospace;
     }
+
     @media (prefers-color-scheme: dark) {
-      :root {
+      body {
         color: white;
       }
     }
-    body {
-      font-family: 'Menlo', 'Consolas', monospace;
-      background-color: transparent;
-      margin: 0;
-    }
-    .spring {
-      display: inline-block;
-      animation: springy 0.6s ease-out;
-    }
-    @keyframes springy {
-      0% { transform: scale(1); }
-      30% { transform: scale(1.25); }
-      60% { transform: scale(0.95); }
-      100% { transform: scale(1); }
+
+    @media (prefers-color-scheme: light) {
+      body {
+        color: black;
+      }
     }
   </style>
 </head>
 <body class="h-screen flex items-center justify-center">
   <div class="flex items-center gap-4 text-xl slashed-zero tabular-nums" id="time-container">
-    <span id="clock">--- — 00:00:00</span>
-    <div class="flex h-3 w-3 justify-center items-center relative">
+    <!-- Pulsing Dot -->
+    <div class="flex h-3 w-3 relative">
       <div class="h-3 w-3 bg-[#27FF63] rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-ping"></div>
       <div class="h-2 w-2 bg-[#27FF63] rounded-full absolute top-[60%] left-[60%] -translate-x-1/2 -translate-y-1/2"></div>
     </div>
-    <span id="weather" class="text-inherit text-xl">Loading weather...</span>
+    
+    <!-- City, Date, Time -->
+    <span id="clock" class="text-xl"></span>
   </div>
 
   <script>
-    let cityCode = "---";
-    const weatherIcons = {
-      0: "☀️", 1: "🌤", 2: "⛅", 3: "☁️",
-      45: "🌫", 48: "🌫", 51: "🌦", 61: "🌧",
-      71: "❄️", 95: "⛈", 99: "⛈"
-    };
-
-    function animateClock(newTime) {
-      const clock = document.getElementById("clock");
-      clock.classList.remove("spring");
-      void clock.offsetWidth;
-      clock.classList.add("spring");
-      clock.textContent = `${cityCode} — ${newTime}`;
+    function getCityCode(name) {
+      return name.trim().slice(0, 3).toUpperCase();
     }
 
-    function updateTime(offset = 3) {
-      const now = new Date();
-      const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-      const localTime = new Date(utc + offset * 60000);
-
-      const hours = String(localTime.getHours()).padStart(2, '0');
-      const minutes = String(localTime.getMinutes()).padStart(2, '0');
-      const seconds = String(localTime.getSeconds()).padStart(2, '0');
-
-      animateClock(`${hours}:${minutes}:${seconds}`);
+    function formatDate(date) {
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = date.toLocaleString('default', { month: 'long' });
+      return `${day} ${month}`;
     }
 
-    setInterval(() => updateTime(), 1000);
-
-    async function fetchWeather(lat, lon) {
-      const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
-      const data = await res.json();
-      const temp = Math.round(data.current_weather.temperature);
-      const iconCode = data.current_weather.weathercode;
-      const emoji = weatherIcons[iconCode] || "❓";
-      document.getElementById('weather').textContent = `${emoji} ${temp}°C`;
-      updateTime(data.utc_offset_seconds / 60);
-    }
-
-    function shortenCityName(name) {
-      return name.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
-    }
-
-    async function fetchCityName(lat, lon) {
+    async function getCityFromCoords(lat, lon) {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+        const res = await fetch(url);
         const data = await res.json();
-        const fullName = data.address.city || data.address.town || data.address.village || data.address.state || "---";
-        cityCode = shortenCityName(fullName);
+        const city = data.address.city || data.address.town || data.address.village || "???";
+        return getCityCode(city);
       } catch {
-        cityCode = "---";
+        return "???";
       }
     }
 
-    function initLocation() {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-          const lat = pos.coords.latitude;
-          const lon = pos.coords.longitude;
-          await fetchCityName(lat, lon);
-          fetchWeather(lat, lon);
-        }, () => {
-          document.getElementById('weather').textContent = "📍 Location blocked";
-        });
+    async function updateClock() {
+      const now = new Date();
+      const dateStr = formatDate(now);
+      const timeStr = now.toTimeString().slice(0, 8);
+      const cityCode = window.cityCode || "???";
+      document.getElementById('clock').textContent = `${cityCode} — ${dateStr}  ${timeStr}`;
+    }
+
+    function getLocationAndCity() {
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            const { latitude, longitude } = pos.coords;
+            const city = await getCityFromCoords(latitude, longitude);
+            window.cityCode = city;
+            updateClock();
+          },
+          () => {
+            window.cityCode = "???";
+            updateClock();
+          }
+        );
       } else {
-        document.getElementById('weather').textContent = "📍 Geolocation not available";
+        window.cityCode = "???";
+        updateClock();
       }
     }
 
-    initLocation();
-    setInterval(initLocation, 10 * 60 * 1000);
+    getLocationAndCity();
+    setInterval(updateClock, 1000); // update time every second
   </script>
 </body>
 </html>
