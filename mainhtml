@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EBL Time Widget</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #0f172a;
+      color: white;
+      font-family: 'Menlo', 'Consolas', monospace;
+    }
+  </style>
+</head>
+<body class="h-screen flex items-center justify-center">
+  <div class="flex items-center gap-3 text-xl slashed-zero tabular-nums" id="time-container">
+    <span id="clock">EBL — 00:00:00</span>
+    <div class="flex h-3 w-3 justify-center items-center relative">
+      <div class="h-3 w-3 bg-[#27FF63] rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-ping"></div>
+      <div class="h-2 w-2 bg-[#27FF63] rounded-full absolute top-[60%] left-[60%] -translate-x-1/2 -translate-y-1/2"></div>
+    </div>
+  </div>
+
+  <script>
+    function updateTime() {
+      const now = new Date();
+      const offset = 3 * 60; // EBL is UTC+3
+      const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+      const eblTime = new Date(utc + 60000 * offset);
+
+      const hours = String(eblTime.getHours()).padStart(2, '0');
+      const minutes = String(eblTime.getMinutes()).padStart(2, '0');
+      const seconds = String(eblTime.getSeconds()).padStart(2, '0');
+
+      document.getElementById('clock').textContent = `EBL — ${hours}:${minutes}:${seconds}`;
+    }
+
+    setInterval(updateTime, 1000);
+    updateTime();
+  </script>
+</body>
+</html>
